@@ -12,7 +12,6 @@ import tiledb
 from langchain.docstore.document import Document
 from langchain.embeddings.base import Embeddings
 from langchain.vectorstores.base import VectorStore
-from langchain.vectorstores.utils import maximal_marginal_relevance
 
 INDEX_METRICS = frozenset(["euclidean"])
 DEFAULT_METRIC = "euclidean"
@@ -208,85 +207,6 @@ class TileDB(VectorStore):
         """
         docs_and_scores = self.similarity_search_with_score(query, k, search_k)
         return [doc for doc, _ in docs_and_scores]
-
-    def max_marginal_relevance_search_by_vector(
-        self,
-        embedding: List[float],
-        k: int = 4,
-        fetch_k: int = 20,
-        lambda_mult: float = 0.5,
-        **kwargs: Any,
-    ) -> List[Document]:
-        """Return docs selected using the maximal marginal relevance.
-
-        Maximal marginal relevance optimizes for similarity to query AND diversity
-        among selected documents.
-
-        Args:
-            embedding: Embedding to look up documents similar to.
-            fetch_k: Number of Documents to fetch to pass to MMR algorithm.
-            k: Number of Documents to return. Defaults to 4.
-            lambda_mult: Number between 0 and 1 that determines the degree
-                        of diversity among the results with 0 corresponding
-                        to maximum diversity and 1 to minimum diversity.
-                        Defaults to 0.5.
-
-        Returns:
-            List of Documents selected by maximal marginal relevance.
-        """
-
-        raise NotImplementedError(
-            "TileDB does not implement max_marginal_relevance_search_by_vector."
-        )
-        # idxs = self.index.query(queries=[embedding], k=fetch_k)
-        # embeddings = [self.index.get_item_vector(i) for i in idxs]
-        # mmr_selected = maximal_marginal_relevance(
-        #     np.array([embedding], dtype=np.float32),
-        #     embeddings,
-        #     k=k,
-        #     lambda_mult=lambda_mult,
-        # )
-        # # ignore the -1's if not enough docs are returned/indexed
-        # selected_indices = [idxs[i] for i in mmr_selected if i != -1]
-        #
-        # docs = []
-        # for i in selected_indices:
-        #     _id = self.index_to_docstore_id[i]
-        #     doc = self.docstore.search(_id)
-        #     if not isinstance(doc, Document):
-        #         raise ValueError(f"Could not find document for id {_id}, got {doc}")
-        #     docs.append(doc)
-        # return docs
-
-    def max_marginal_relevance_search(
-        self,
-        query: str,
-        k: int = 4,
-        fetch_k: int = 20,
-        lambda_mult: float = 0.5,
-        **kwargs: Any,
-    ) -> List[Document]:
-        """Return docs selected using the maximal marginal relevance.
-
-        Maximal marginal relevance optimizes for similarity to query AND diversity
-        among selected documents.
-
-        Args:
-            query: Text to look up documents similar to.
-            k: Number of Documents to return. Defaults to 4.
-            fetch_k: Number of Documents to fetch to pass to MMR algorithm.
-            lambda_mult: Number between 0 and 1 that determines the degree
-                        of diversity among the results with 0 corresponding
-                        to maximum diversity and 1 to minimum diversity.
-                        Defaults to 0.5.
-        Returns:
-            List of Documents selected by maximal marginal relevance.
-        """
-        embedding = self.embedding_function(query)
-        docs = self.max_marginal_relevance_search_by_vector(
-            embedding, k, fetch_k, lambda_mult=lambda_mult
-        )
-        return docs
 
     @classmethod
     def __from(
