@@ -322,7 +322,7 @@ class TileDB(VectorStore):
         embeddings = []
         for i in range(len(texts)):
             with rate_limiter:
-                embeddings.append(embedding.embed_documents(texts[i]))
+                embeddings.append(embedding.embed_documents(texts[i])[0])
         return cls.__from(
             texts, embeddings, embedding, metadatas, metric, array_uri
         )
