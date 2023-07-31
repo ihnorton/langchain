@@ -275,7 +275,6 @@ class TileDB(VectorStore):
             data = {}
             data["text"] = np.array(texts)
             if metadatas is not None:
-                print(metadatas)
                 metadata_attr = np.array(
                     [
                         np.frombuffer(pickle.dumps(metadata), dtype=np.uint8)
@@ -283,7 +282,6 @@ class TileDB(VectorStore):
                     ],
                     dtype='O',
                 )
-                print(metadata_attr)
                 data["metadata"] = metadata_attr
 
             A[0:len(texts)] = data
