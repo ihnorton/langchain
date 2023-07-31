@@ -5,6 +5,7 @@ import os
 import pickle
 import random
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
+from ratelimiter import RateLimiter
 
 import numpy as np
 import tiledb
@@ -297,6 +298,7 @@ class TileDB(VectorStore):
         metadatas: Optional[List[dict]] = None,
         metric: str = DEFAULT_METRIC,
         array_uri: str = "/tmp/tiledb_array",
+        rate_limiter: RateLimiter = RateLimiter(max_calls=100, period=60),
         **kwargs: Any,
     ) -> TileDB:
         """Construct a TileDB index from raw documents.
@@ -307,6 +309,7 @@ class TileDB(VectorStore):
             metadatas: List of metadata dictionaries to associate with documents.
             metric: Metric to use for indexing. Defaults to "euclidean".
             array_uri: The URI to write the TileDB arrays
+            rate_limiter: RateLimiter for embeddings generation
 
         Example:
             .. code-block:: python
@@ -316,7 +319,10 @@ class TileDB(VectorStore):
                 embeddings = OpenAIEmbeddings()
                 index = TileDB.from_texts(texts, embeddings)
         """
-        embeddings = embedding.embed_documents(texts)
+        embeddings = []
+        for i in range(len(texts)):
+            with rate_limiter:
+                embeddings.append(embedding.embed_documents(texts[i]))
         return cls.__from(
             texts, embeddings, embedding, metadatas, metric, array_uri
         )
