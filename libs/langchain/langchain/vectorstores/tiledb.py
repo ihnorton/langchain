@@ -320,9 +320,12 @@ class TileDB(VectorStore):
                 index = TileDB.from_texts(texts, embeddings)
         """
         embeddings = []
-        for i in range(len(texts)):
-            with rate_limiter:
-                embeddings.append(embedding.embed_documents(texts[i])[0])
+        if rate_limiter is None:
+            embeddings = embedding.embed_documents(texts)
+        else:
+            for i in range(len(texts)):
+                with rate_limiter:
+                    embeddings.append(embedding.embed_documents(texts[i])[0])
         return cls.__from(
             texts, embeddings, embedding, metadatas, metric, array_uri
         )
