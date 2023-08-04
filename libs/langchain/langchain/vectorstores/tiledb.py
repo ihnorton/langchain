@@ -28,6 +28,7 @@ def dependable_tiledb_import() -> Any:
         raise ValueError(
             "Could not import tiledb-vector-search python package. "
             "Please install it with `conda install -c tiledb tiledb-vector-search` "
+            "or `pip install tiledb-vector-search`"
         )
     return tiledb_vs
 
