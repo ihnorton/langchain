@@ -71,7 +71,7 @@ class TileDB(VectorStore):
         **kwargs: Any,
     ) -> List[str]:
         raise NotImplementedError(
-            "TileDB does not allow to add new data once the index is build."
+            "TileDB does not allow to add new data once the index is built."
         )
 
     def process_index_results(self, idxs: List[int]) -> List[Tuple[Document, float]]:
