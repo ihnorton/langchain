@@ -32,3 +32,9 @@ def test_tiledb_updates(tmp_path) -> None:
     assert output == [Document(page_content="fooo")]
     output = docsearch.similarity_search("bazz", k=1)
     assert output == [Document(page_content="bazz")]
+
+    docsearch.consolidate_updates()
+    output = docsearch.similarity_search("fooo", k=1)
+    assert output == [Document(page_content="fooo")]
+    output = docsearch.similarity_search("bazz", k=1)
+    assert output == [Document(page_content="bazz")]
