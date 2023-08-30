@@ -452,3 +452,6 @@ class TileDB(VectorStore):
         index = tiledb_vs.ivf_flat_index.IVFFlatIndex(uri=vector_array_uri)
 
         return cls(embeddings, index, DEFAULT_METRIC, documents_array_uri)
+
+    def consolidate_updates(self):
+        self.index = self.index.consolidate_updates()
