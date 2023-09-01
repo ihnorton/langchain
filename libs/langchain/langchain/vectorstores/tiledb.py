@@ -79,6 +79,8 @@ class TileDB(VectorStore):
         docs = []
         docs_array = tiledb.open(self.docs_array_uri, "r")
         for idx, dist in zip(idxs, dists):
+            if idx == 0 and dist == 0:
+                continue
             if idx == MAX_UINT64 and dist == MAX_FLOAT_32:
                 continue
             doc = docs_array[idx]
@@ -236,9 +238,10 @@ class TileDB(VectorStore):
         group = tiledb.Group(array_uri, "w")
         vector_array_uri = f"{group.uri}/{VECTOR_ARRAY_NAME}"
         docs_uri = f"{group.uri}/{DOCUMENTS_ARRAY_NAME}"
-        external_ids = None
-        if ids is not None:
-            external_ids = np.array(ids).astype(np.uint64)
+        if ids is None:
+            ids = [random.randint(0, 100000) for _ in texts]
+        external_ids = np.array(ids).astype(np.uint64)
+
         input_vectors = np.array(embeddings).astype(np.float32)
         index = tiledb_vs.ingestion.ingest(
             index_type="IVF_FLAT",
@@ -276,13 +279,11 @@ class TileDB(VectorStore):
             data = {}
             data["text"] = np.array(texts)
             if metadatas is not None:
-                metadata_attr = np.array(
-                    [
-                        np.frombuffer(pickle.dumps(metadata), dtype=np.uint8)
-                        for metadata in metadatas
-                    ],
-                    dtype='O',
-                )
+                metadata_attr = np.empty([len(metadatas)], dtype=object)
+                i = 0
+                for metadata in metadatas:
+                    metadata_attr[i] = np.frombuffer(pickle.dumps(metadata), dtype=np.uint8)
+                    i += 1
                 data["metadata"] = metadata_attr
 
             A[external_ids] = data
@@ -330,6 +331,9 @@ class TileDB(VectorStore):
             for i in range(len(texts)):
                 with rate_limiter:
                     embeddings.append(self.embedding.embed_documents(texts[i])[0])
+        if ids is None:
+            ids = [random.randint(0, 100000) for _ in texts]
+
         external_ids = np.array(ids).astype(np.uint64)
         vectors = np.empty((len(embeddings)), dtype='O')
         for i in range(len(embeddings)):
@@ -339,13 +343,11 @@ class TileDB(VectorStore):
         docs = {}
         docs["text"] = np.array(texts)
         if metadatas is not None:
-            metadata_attr = np.array(
-                [
-                    np.frombuffer(pickle.dumps(metadata), dtype=np.uint8)
-                    for metadata in metadatas
-                ],
-                dtype='O',
-            )
+            metadata_attr = np.empty([len(metadatas)], dtype=object)
+            i = 0
+            for metadata in metadatas:
+                metadata_attr[i] = np.frombuffer(pickle.dumps(metadata), dtype=np.uint8)
+                i += 1
             docs["metadata"] = metadata_attr
 
         docs_array = tiledb.open(self.docs_array_uri, "w")
