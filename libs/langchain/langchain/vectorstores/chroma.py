@@ -1,4 +1,3 @@
-"""Wrapper around ChromaDB embeddings platform."""
 from __future__ import annotations
 
 import logging
@@ -50,7 +49,7 @@ def _results_to_docs_and_scores(results: Any) -> List[Tuple[Document, float]]:
 
 
 class Chroma(VectorStore):
-    """Wrapper around ChromaDB embeddings platform.
+    """`ChromaDB` vector store.
 
     To use, you should have the ``chromadb`` python package installed.
 
@@ -76,12 +75,12 @@ class Chroma(VectorStore):
         client: Optional[chromadb.Client] = None,
         relevance_score_fn: Optional[Callable[[float], float]] = None,
     ) -> None:
-        """Initialize with Chroma client."""
+        """Initialize with a Chroma client."""
         try:
             import chromadb
             import chromadb.config
         except ImportError:
-            raise ValueError(
+            raise ImportError(
                 "Could not import chromadb python package. "
                 "Please install it with `pip install chromadb`."
             )
@@ -92,6 +91,17 @@ class Chroma(VectorStore):
             self._persist_directory = persist_directory
         else:
             if client_settings:
+                # If client_settings is provided with persist_directory specified,
+                # then it is "in-memory and persisting to disk" mode.
+                client_settings.persist_directory = (
+                    persist_directory or client_settings.persist_directory
+                )
+                if client_settings.persist_directory is not None:
+                    # Maintain backwards compatibility with chromadb < 0.4.0
+                    major, minor, _ = chromadb.__version__.split(".")
+                    if int(major) == 0 and int(minor) < 4:
+                        client_settings.chroma_db_impl = "duckdb+parquet"
+
                 _client_settings = client_settings
             elif persist_directory:
                 # Maintain backwards compatibility with chromadb < 0.4.0
@@ -171,38 +181,62 @@ class Chroma(VectorStore):
         if ids is None:
             ids = [str(uuid.uuid1()) for _ in texts]
         embeddings = None
+        texts = list(texts)
         if self._embedding_function is not None:
-            embeddings = self._embedding_function.embed_documents(list(texts))
-
+            embeddings = self._embedding_function.embed_documents(texts)
         if metadatas:
-            texts = list(texts)
-            empty = []
-            non_empty = []
-            for i, m in enumerate(metadatas):
+            # fill metadatas with empty dicts if somebody
+            # did not specify metadata for all texts
+            length_diff = len(texts) - len(metadatas)
+            if length_diff:
+                metadatas = metadatas + [{}] * length_diff
+            empty_ids = []
+            non_empty_ids = []
+            for idx, m in enumerate(metadatas):
                 if m:
-                    non_empty.append(i)
+                    non_empty_ids.append(idx)
                 else:
-                    empty.append(i)
-            if non_empty:
-                metadatas = [metadatas[i] for i in non_empty]
-                texts_with_metadatas = [texts[i] for i in non_empty]
+                    empty_ids.append(idx)
+            if non_empty_ids:
+                metadatas = [metadatas[idx] for idx in non_empty_ids]
+                texts_with_metadatas = [texts[idx] for idx in non_empty_ids]
                 embeddings_with_metadatas = (
-                    [embeddings[i] for i in non_empty] if embeddings else None
+                    [embeddings[idx] for idx in non_empty_ids] if embeddings else None
                 )
-                ids_with_metadata = [ids[i] for i in non_empty]
+                ids_with_metadata = [ids[idx] for idx in non_empty_ids]
+                try:
+                    self._collection.upsert(
+                        metadatas=metadatas,
+                        embeddings=embeddings_with_metadatas,
+                        documents=texts_with_metadatas,
+                        ids=ids_with_metadata,
+                    )
+                except ValueError as e:
+                    if "Expected metadata value to be" in str(e):
+                        msg = (
+                            "Try filtering complex metadata from the document using "
+                            "langchain.vectorstore.utils.filter_complex_metadata."
+                        )
+                        raise ValueError(e.args[0] + "\n\n" + msg)
+                    else:
+                        raise e
+            if empty_ids:
+                texts_without_metadatas = [texts[j] for j in empty_ids]
+                embeddings_without_metadatas = (
+                    [embeddings[j] for j in empty_ids] if embeddings else None
+                )
+                ids_without_metadatas = [ids[j] for j in empty_ids]
                 self._collection.upsert(
-                    metadatas=metadatas,
-                    embeddings=embeddings_with_metadatas,
-                    documents=texts_with_metadatas,
-                    ids=ids_with_metadata,
+                    embeddings=embeddings_without_metadatas,
+                    documents=texts_without_metadatas,
+                    ids=ids_without_metadatas,
                 )
-
-            texts = [texts[j] for j in empty]
-            embeddings = [embeddings[j] for j in empty] if embeddings else None
-            ids = [ids[j] for j in empty]
-
-        if texts:
-            self._collection.upsert(embeddings=embeddings, documents=texts, ids=ids)
+        else:
+            self._collection.upsert(
+                embeddings=embeddings,
+                documents=texts,
+                ids=ids,
+            )
         return ids
 
     def similarity_search(

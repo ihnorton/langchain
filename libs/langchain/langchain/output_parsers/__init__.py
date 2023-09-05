@@ -1,3 +1,17 @@
+"""**OutputParser** classes parse the output of an LLM call.
+
+**Class hierarchy:**
+
+.. code-block::
+
+    BaseLLMOutputParser --> BaseOutputParser --> <name>OutputParser  # ListOutputParser, PydanticOutputParser
+
+**Main helpers:**
+
+.. code-block::
+
+    Serializable, Generation, PromptValue
+"""  # noqa: E501
 from langchain.output_parsers.boolean import BooleanOutputParser
 from langchain.output_parsers.combining import CombiningOutputParser
 from langchain.output_parsers.datetime import DatetimeOutputParser
@@ -6,6 +20,7 @@ from langchain.output_parsers.fix import OutputFixingParser
 from langchain.output_parsers.list import (
     CommaSeparatedListOutputParser,
     ListOutputParser,
+    NumberedListOutputParser,
 )
 from langchain.output_parsers.pydantic import PydanticOutputParser
 from langchain.output_parsers.rail_parser import GuardrailsOutputParser
@@ -22,6 +37,7 @@ __all__ = [
     "EnumOutputParser",
     "GuardrailsOutputParser",
     "ListOutputParser",
+    "NumberedListOutputParser",
     "OutputFixingParser",
     "PydanticOutputParser",
     "RegexDictParser",
