@@ -13,6 +13,7 @@ import tiledb
 from langchain.docstore.document import Document
 from langchain.embeddings.base import Embeddings
 from langchain.vectorstores.base import VectorStore
+from langchain.vectorstores.utils import maximal_marginal_relevance
 
 INDEX_METRICS = frozenset(["euclidean"])
 DEFAULT_METRIC = "euclidean"
@@ -67,147 +68,301 @@ class TileDB(VectorStore):
         # TODO: Accept embedding object directly
         return None
 
-    def process_index_results(self, idxs: List[int], dists: List[float]) -> List[Tuple[Document, float]]:
+    def process_index_results(
+        self,
+        ids: List[int],
+        scores: List[float],
+        k: int = 4,
+        filter: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
+    ) -> List[Tuple[Document, float]]:
         """Turns TileDB results into a list of documents and scores.
 
         Args:
-            idxs: List of indices of the documents in the index.
-            dists: List of distances of the documents in the index.
+            ids: List of indices of the documents in the index.
+            scores: List of distances of the documents in the index.
+            k: Number of Documents to return. Defaults to 4.
+            filter (Optional[Dict[str, Any]]): Filter by metadata. Defaults to None.
+            **kwargs: kwargs to be passed to similarity search. Can include:
+                score_threshold: Optional, a floating point value between 0 to 1 to
+                    filter the resulting set of retrieved docs
         Returns:
             List of Documents and scores.
         """
         docs = []
         docs_array = tiledb.open(self.docs_array_uri, "r")
-        for idx, dist in zip(idxs, dists):
-            if idx == 0 and dist == 0:
+        for idx, score in zip(ids, scores):
+            if idx == 0 and score == 0:
                 continue
-            if idx == MAX_UINT64 and dist == MAX_FLOAT_32:
+            if idx == MAX_UINT64 and score == MAX_FLOAT_32:
                 continue
             doc = docs_array[idx]
             if doc is None or len(doc["text"]) == 0:
                 raise ValueError(f"Could not find document for id {idx}, got {doc}")
             pickled_metadata = doc.get("metadata")
+            result_doc = Document(page_content=str(doc["text"][0]))
             if pickled_metadata is not None:
                 metadata = pickle.loads(
                     np.array(pickled_metadata.tolist()).astype(np.uint8).tobytes()
                 )
-                docs.append(
-                    (Document(page_content=str(doc["text"][0]), metadata=metadata), dist)
-                )
+                result_doc.metadata = metadata
+            if filter is not None:
+                filter = {
+                    key: [value] if not isinstance(value, list) else value
+                    for key, value in filter.items()
+                }
+                if all(result_doc.metadata.get(key) in value for key, value in filter.items()):
+                    docs.append((result_doc, score))
             else:
-                docs.append(
-                    (Document(page_content=str(doc["text"][0])), dist)
-                )
+                docs.append((result_doc, score))
         docs_array.close()
-        return docs
+        score_threshold = kwargs.get("score_threshold")
+        if score_threshold is not None:
+            docs = [
+                (doc, score)
+                for doc, score in docs
+                if score <= score_threshold
+            ]
+        return docs[:k]
 
     def similarity_search_with_score_by_vector(
-        self, embedding: List[float], k: int = 4, search_k: int = -1
+        self,
+        embedding: List[float],
+        k: int = 4,
+        filter: Optional[Dict[str, Any]] = None,
+        fetch_k: int = 20,
+        **kwargs: Any,
     ) -> List[Tuple[Document, float]]:
         """Return docs most similar to query.
 
         Args:
-            query: Text to look up documents similar to.
+            embedding: Embedding vector to look up documents similar to.
             k: Number of Documents to return. Defaults to 4.
-            search_k: inspect up to search_k nodes which defaults
-                to n_trees * n if not provided
+            filter (Optional[Dict[str, Any]]): Filter by metadata. Defaults to None.
+            fetch_k: (Optional[int]) Number of Documents to fetch before filtering.
+                      Defaults to 20.
+            **kwargs: kwargs to be passed to similarity search. Can include:
+                score_threshold: Optional, a floating point value between 0 to 1 to
+                    filter the resulting set of retrieved docs
+
         Returns:
-            List of Documents most similar to the query and score for each
+            List of documents most similar to the query text and L2 distance
+            in float for each. Lower score represents more similarity.
         """
         d, i = self.index.query(
-            np.array([np.array(embedding).astype(np.float32)]).astype(np.float32), k=k
+            np.array([np.array(embedding).astype(np.float32)]).astype(np.float32),
+            k=k if filter is None else fetch_k
         )
-        return self.process_index_results(idxs=i[0], dists=d[0])
-
-    def similarity_search_with_score_by_index(
-        self, docstore_index: int, k: int = 4, search_k: int = -1
-    ) -> List[Tuple[Document, float]]:
-        """Return docs most similar to query.
-
-        Args:
-            query: Text to look up documents similar to.
-            k: Number of Documents to return. Defaults to 4.
-            search_k: inspect up to search_k nodes which defaults
-                to n_trees * n if not provided
-        Returns:
-            List of Documents most similar to the query and score for each
-        """
-        raise NotImplementedError(
-            "TileDB does not implement similarity_search_with_score_by_index."
+        return self.process_index_results(
+            ids=i[0],
+            scores=d[0],
+            filter=filter,
+            k=k,
+            **kwargs
         )
 
     def similarity_search_with_score(
-        self, query: str, k: int = 4, search_k: int = -1
+        self,
+        query: str,
+        k: int = 4,
+        filter: Optional[Dict[str, Any]] = None,
+        fetch_k: int = 20,
+        **kwargs: Any,
     ) -> List[Tuple[Document, float]]:
         """Return docs most similar to query.
 
         Args:
             query: Text to look up documents similar to.
             k: Number of Documents to return. Defaults to 4.
-            search_k: inspect up to search_k nodes which defaults
-                to n_trees * n if not provided
+            filter (Optional[Dict[str, str]]): Filter by metadata. Defaults to None.
+            fetch_k: (Optional[int]) Number of Documents to fetch before filtering.
+                      Defaults to 20.
 
         Returns:
-            List of Documents most similar to the query and score for each
+            List of documents most similar to the query text with
+            L2 distance in float. Lower score represents more similarity.
         """
         embedding = self.embedding_function(query)
-        docs = self.similarity_search_with_score_by_vector(embedding, k, search_k)
+        docs = self.similarity_search_with_score_by_vector(
+            embedding,
+            k,
+            filter=filter,
+            fetch_k=fetch_k,
+            **kwargs,
+        )
         return docs
 
     def similarity_search_by_vector(
-        self, embedding: List[float], k: int = 4, search_k: int = -1, **kwargs: Any
+        self,
+        embedding: List[float],
+        k: int = 4,
+        filter: Optional[Dict[str, Any]] = None,
+        fetch_k: int = 20,
+        **kwargs: Any,
     ) -> List[Document]:
         """Return docs most similar to embedding vector.
 
         Args:
             embedding: Embedding to look up documents similar to.
             k: Number of Documents to return. Defaults to 4.
-            search_k: inspect up to search_k nodes which defaults
-                to n_trees * n if not provided
+            filter (Optional[Dict[str, str]]): Filter by metadata. Defaults to None.
+            fetch_k: (Optional[int]) Number of Documents to fetch before filtering.
+                      Defaults to 20.
 
         Returns:
             List of Documents most similar to the embedding.
         """
         docs_and_scores = self.similarity_search_with_score_by_vector(
-            embedding, k, search_k
-        )
-        return [doc for doc, _ in docs_and_scores]
-
-    def similarity_search_by_index(
-        self, docstore_index: int, k: int = 4, search_k: int = -1, **kwargs: Any
-    ) -> List[Document]:
-        """Return docs most similar to docstore_index.
-
-        Args:
-            docstore_index: Index of document in docstore
-            k: Number of Documents to return. Defaults to 4.
-            search_k: inspect up to search_k nodes which defaults
-                to n_trees * n if not provided
-
-        Returns:
-            List of Documents most similar to the embedding.
-        """
-        docs_and_scores = self.similarity_search_with_score_by_index(
-            docstore_index, k, search_k
+            embedding,
+            k,
+            filter=filter,
+            fetch_k=fetch_k,
+            **kwargs,
         )
         return [doc for doc, _ in docs_and_scores]
 
     def similarity_search(
-        self, query: str, k: int = 4, search_k: int = -1, **kwargs: Any
+        self,
+        query: str,
+        k: int = 4,
+        filter: Optional[Dict[str, Any]] = None,
+        fetch_k: int = 20,
+        **kwargs: Any,
     ) -> List[Document]:
         """Return docs most similar to query.
 
         Args:
             query: Text to look up documents similar to.
             k: Number of Documents to return. Defaults to 4.
-            search_k: inspect up to search_k nodes which defaults
-                to n_trees * n if not provided
+            filter: (Optional[Dict[str, str]]): Filter by metadata. Defaults to None.
+            fetch_k: (Optional[int]) Number of Documents to fetch before filtering.
+                      Defaults to 20.
 
         Returns:
             List of Documents most similar to the query.
         """
-        docs_and_scores = self.similarity_search_with_score(query, k, search_k)
+        docs_and_scores = self.similarity_search_with_score(
+            query, k, filter=filter, fetch_k=fetch_k, **kwargs
+        )
         return [doc for doc, _ in docs_and_scores]
+
+    def max_marginal_relevance_search_with_score_by_vector(
+        self,
+        embedding: List[float],
+        *,
+        k: int = 4,
+        fetch_k: int = 20,
+        lambda_mult: float = 0.5,
+        filter: Optional[Dict[str, Any]] = None,
+    ) -> List[Tuple[Document, float]]:
+        """Return docs and their similarity scores selected using the maximal marginal
+            relevance.
+
+        Maximal marginal relevance optimizes for similarity to query AND diversity
+        among selected documents.
+
+        Args:
+            embedding: Embedding to look up documents similar to.
+            k: Number of Documents to return. Defaults to 4.
+            fetch_k: Number of Documents to fetch before filtering to
+                     pass to MMR algorithm.
+            lambda_mult: Number between 0 and 1 that determines the degree
+                        of diversity among the results with 0 corresponding
+                        to maximum diversity and 1 to minimum diversity.
+                        Defaults to 0.5.
+        Returns:
+            List of Documents and similarity scores selected by maximal marginal
+                relevance and score for each.
+        """
+        scores, indices = self.index.query(
+            np.array([np.array(embedding).astype(np.float32)]).astype(np.float32),
+            k=fetch_k if filter is None else fetch_k * 2
+        )
+        results = self.process_index_results(
+            ids=indices[0],
+            scores=scores[0],
+            filter=filter,
+            k=fetch_k if filter is None else fetch_k * 2
+        )
+        embeddings = [self.embedding.embed_documents([doc.page_content])[0] for doc, _ in results]
+        mmr_selected = maximal_marginal_relevance(
+            np.array([embedding], dtype=np.float32),
+            embeddings,
+            k=k,
+            lambda_mult=lambda_mult,
+        )
+        docs_and_scores = []
+        for i in mmr_selected:
+            docs_and_scores.append(results[i])
+        return docs_and_scores
+
+    def max_marginal_relevance_search_by_vector(
+        self,
+        embedding: List[float],
+        k: int = 4,
+        fetch_k: int = 20,
+        lambda_mult: float = 0.5,
+        filter: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
+    ) -> List[Document]:
+        """Return docs selected using the maximal marginal relevance.
+
+        Maximal marginal relevance optimizes for similarity to query AND diversity
+        among selected documents.
+
+        Args:
+            embedding: Embedding to look up documents similar to.
+            k: Number of Documents to return. Defaults to 4.
+            fetch_k: Number of Documents to fetch before filtering to
+                     pass to MMR algorithm.
+            lambda_mult: Number between 0 and 1 that determines the degree
+                        of diversity among the results with 0 corresponding
+                        to maximum diversity and 1 to minimum diversity.
+                        Defaults to 0.5.
+        Returns:
+            List of Documents selected by maximal marginal relevance.
+        """
+        docs_and_scores = self.max_marginal_relevance_search_with_score_by_vector(
+            embedding, k=k, fetch_k=fetch_k, lambda_mult=lambda_mult, filter=filter
+        )
+        return [doc for doc, _ in docs_and_scores]
+
+    def max_marginal_relevance_search(
+        self,
+        query: str,
+        k: int = 4,
+        fetch_k: int = 20,
+        lambda_mult: float = 0.5,
+        filter: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
+    ) -> List[Document]:
+        """Return docs selected using the maximal marginal relevance.
+
+        Maximal marginal relevance optimizes for similarity to query AND diversity
+        among selected documents.
+
+        Args:
+            query: Text to look up documents similar to.
+            k: Number of Documents to return. Defaults to 4.
+            fetch_k: Number of Documents to fetch before filtering (if needed) to
+                     pass to MMR algorithm.
+            lambda_mult: Number between 0 and 1 that determines the degree
+                        of diversity among the results with 0 corresponding
+                        to maximum diversity and 1 to minimum diversity.
+                        Defaults to 0.5.
+        Returns:
+            List of Documents selected by maximal marginal relevance.
+        """
+        embedding = self.embedding_function(query)
+        docs = self.max_marginal_relevance_search_by_vector(
+            embedding,
+            k=k,
+            fetch_k=fetch_k,
+            lambda_mult=lambda_mult,
+            filter=filter,
+            **kwargs,
+        )
+        return docs
 
     @classmethod
     def __from(
@@ -239,7 +394,7 @@ class TileDB(VectorStore):
         vector_array_uri = f"{group.uri}/{VECTOR_ARRAY_NAME}"
         docs_uri = f"{group.uri}/{DOCUMENTS_ARRAY_NAME}"
         if ids is None:
-            ids = [random.randint(0, 100000) for _ in texts]
+            ids = [random.randint(0, MAX_UINT64-1) for _ in texts]
         external_ids = np.array(ids).astype(np.uint64)
 
         input_vectors = np.array(embeddings).astype(np.float32)
