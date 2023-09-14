@@ -5,7 +5,6 @@ import os
 import pickle
 import random
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
-from ratelimiter import RateLimiter
 
 import numpy as np
 import tiledb
@@ -466,7 +465,6 @@ class TileDB(VectorStore):
         texts: Iterable[str],
         metadatas: Optional[List[dict]] = None,
         ids: Optional[List[str]] = None,
-        rate_limiter: RateLimiter = None,
         **kwargs: Any,
     ) -> List[str]:
         """Run more texts through the embeddings and add to the vectorstore.
@@ -480,12 +478,7 @@ class TileDB(VectorStore):
             List of ids from adding the texts into the vectorstore.
         """
         embeddings = []
-        if rate_limiter is None:
-            embeddings = self.embedding.embed_documents(texts)
-        else:
-            for i in range(len(texts)):
-                with rate_limiter:
-                    embeddings.append(self.embedding.embed_documents(texts[i])[0])
+        embeddings = self.embedding.embed_documents(texts)
         if ids is None:
             ids = [random.randint(0, 100000) for _ in texts]
 
@@ -519,7 +512,6 @@ class TileDB(VectorStore):
         ids: Optional[List[str]] = None,
         metric: str = DEFAULT_METRIC,
         array_uri: str = "/tmp/tiledb_array",
-        rate_limiter: RateLimiter = None,
         **kwargs: Any,
     ) -> TileDB:
         """Construct a TileDB index from raw documents.
@@ -530,7 +522,6 @@ class TileDB(VectorStore):
             metadatas: List of metadata dictionaries to associate with documents.
             metric: Metric to use for indexing. Defaults to "euclidean".
             array_uri: The URI to write the TileDB arrays
-            rate_limiter: RateLimiter for embeddings generation
 
         Example:
             .. code-block:: python
@@ -541,12 +532,7 @@ class TileDB(VectorStore):
                 index = TileDB.from_texts(texts, embeddings)
         """
         embeddings = []
-        if rate_limiter is None:
-            embeddings = embedding.embed_documents(texts)
-        else:
-            for i in range(len(texts)):
-                with rate_limiter:
-                    embeddings.append(embedding.embed_documents(texts[i])[0])
+        embeddings = embedding.embed_documents(texts)
         return cls.__from(
             texts, embeddings, embedding, metadatas, ids, metric, array_uri
         )
