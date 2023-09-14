@@ -3,13 +3,18 @@ import pytest
 
 from langchain.docstore.document import Document
 from langchain.vectorstores import TileDB
-from tests.integration_tests.vectorstores.fake_embeddings import ConsistentFakeEmbeddings, FakeEmbeddings
+from tests.integration_tests.vectorstores.fake_embeddings import (
+    ConsistentFakeEmbeddings,
+    FakeEmbeddings,
+)
 
 
 def test_tiledb(tmp_path) -> None:
     """Test end to end construction and search."""
     texts = ["foo", "bar", "baz"]
-    docsearch = TileDB.from_texts(texts=texts, embedding=ConsistentFakeEmbeddings(), array_uri=str(tmp_path))
+    docsearch = TileDB.from_texts(
+        texts=texts, embedding=ConsistentFakeEmbeddings(), array_uri=str(tmp_path)
+    )
     output = docsearch.similarity_search("foo", k=1)
     assert output == [Document(page_content="foo")]
 
@@ -17,7 +22,9 @@ def test_tiledb(tmp_path) -> None:
 def test_tiledb_vector_sim(tmp_path) -> None:
     """Test vector similarity."""
     texts = ["foo", "bar", "baz"]
-    docsearch = TileDB.from_texts(texts=texts, embedding=ConsistentFakeEmbeddings(), array_uri=str(tmp_path))
+    docsearch = TileDB.from_texts(
+        texts=texts, embedding=ConsistentFakeEmbeddings(), array_uri=str(tmp_path)
+    )
     query_vec = FakeEmbeddings().embed_query(text="foo")
     output = docsearch.similarity_search_by_vector(query_vec, k=1)
     assert output == [Document(page_content="foo")]
@@ -26,7 +33,9 @@ def test_tiledb_vector_sim(tmp_path) -> None:
 def test_tiledb_vector_sim_with_score_threshold(tmp_path) -> None:
     """Test vector similarity."""
     texts = ["foo", "bar", "baz"]
-    docsearch = TileDB.from_texts(texts=texts, embedding=ConsistentFakeEmbeddings(), array_uri=str(tmp_path))
+    docsearch = TileDB.from_texts(
+        texts=texts, embedding=ConsistentFakeEmbeddings(), array_uri=str(tmp_path)
+    )
     query_vec = FakeEmbeddings().embed_query(text="foo")
     output = docsearch.similarity_search_by_vector(query_vec, k=2, score_threshold=0.2)
     assert output == [Document(page_content="foo")]
@@ -35,7 +44,9 @@ def test_tiledb_vector_sim_with_score_threshold(tmp_path) -> None:
 def test_similarity_search_with_score_by_vector(tmp_path) -> None:
     """Test vector similarity with score by vector."""
     texts = ["foo", "bar", "baz"]
-    docsearch = TileDB.from_texts(texts=texts, embedding=ConsistentFakeEmbeddings(), array_uri=str(tmp_path))
+    docsearch = TileDB.from_texts(
+        texts=texts, embedding=ConsistentFakeEmbeddings(), array_uri=str(tmp_path)
+    )
     query_vec = FakeEmbeddings().embed_query(text="foo")
     output = docsearch.similarity_search_with_score_by_vector(query_vec, k=1)
     assert len(output) == 1
@@ -45,7 +56,9 @@ def test_similarity_search_with_score_by_vector(tmp_path) -> None:
 def test_similarity_search_with_score_by_vector_with_score_threshold(tmp_path) -> None:
     """Test vector similarity with score by vector."""
     texts = ["foo", "bar", "baz"]
-    docsearch = TileDB.from_texts(texts=texts, embedding=ConsistentFakeEmbeddings(), array_uri=str(tmp_path))
+    docsearch = TileDB.from_texts(
+        texts=texts, embedding=ConsistentFakeEmbeddings(), array_uri=str(tmp_path)
+    )
     query_vec = FakeEmbeddings().embed_query(text="foo")
     output = docsearch.similarity_search_with_score_by_vector(
         query_vec,
@@ -59,7 +72,9 @@ def test_similarity_search_with_score_by_vector_with_score_threshold(tmp_path) -
 
 def test_tiledb_mmr(tmp_path) -> None:
     texts = ["foo", "foo", "fou", "foy"]
-    docsearch = TileDB.from_texts(texts=texts, embedding=ConsistentFakeEmbeddings(), array_uri=str(tmp_path))
+    docsearch = TileDB.from_texts(
+        texts=texts, embedding=ConsistentFakeEmbeddings(), array_uri=str(tmp_path)
+    )
     query_vec = ConsistentFakeEmbeddings().embed_query(text="foo")
     # make sure we can have k > docstore size
     output = docsearch.max_marginal_relevance_search_with_score_by_vector(
@@ -74,7 +89,12 @@ def test_tiledb_mmr(tmp_path) -> None:
 def test_tiledb_mmr_with_metadatas_and_filter(tmp_path) -> None:
     texts = ["foo", "foo", "fou", "foy"]
     metadatas = [{"page": i} for i in range(len(texts))]
-    docsearch = TileDB.from_texts(texts=texts, metadatas=metadatas, embedding=ConsistentFakeEmbeddings(), array_uri=str(tmp_path))
+    docsearch = TileDB.from_texts(
+        texts=texts,
+        metadatas=metadatas,
+        embedding=ConsistentFakeEmbeddings(),
+        array_uri=str(tmp_path),
+    )
     query_vec = ConsistentFakeEmbeddings().embed_query(text="foo")
     output = docsearch.max_marginal_relevance_search_with_score_by_vector(
         query_vec, k=3, lambda_mult=0.1, filter={"page": 1}
@@ -87,7 +107,12 @@ def test_tiledb_mmr_with_metadatas_and_filter(tmp_path) -> None:
 def test_tiledb_mmr_with_metadatas_and_list_filter(tmp_path) -> None:
     texts = ["foo", "fou", "foy", "foo"]
     metadatas = [{"page": i} for i in range(len(texts))]
-    docsearch = TileDB.from_texts(texts=texts, metadatas=metadatas, embedding=ConsistentFakeEmbeddings(), array_uri=str(tmp_path))
+    docsearch = TileDB.from_texts(
+        texts=texts,
+        metadatas=metadatas,
+        embedding=ConsistentFakeEmbeddings(),
+        array_uri=str(tmp_path),
+    )
     query_vec = ConsistentFakeEmbeddings().embed_query(text="foo")
     output = docsearch.max_marginal_relevance_search_with_score_by_vector(
         query_vec, k=3, lambda_mult=0.1, filter={"page": [0, 1, 2]}
@@ -103,7 +128,12 @@ def test_tiledb_updates(tmp_path) -> None:
     """Test end to end construction and search."""
     texts = ["foo", "bar", "baz"]
     ids = [1, 2, 3]
-    docsearch = TileDB.from_texts(texts=texts, embedding=ConsistentFakeEmbeddings(), array_uri=str(tmp_path), ids=ids)
+    docsearch = TileDB.from_texts(
+        texts=texts,
+        embedding=ConsistentFakeEmbeddings(),
+        array_uri=str(tmp_path),
+        ids=ids,
+    )
     output = docsearch.similarity_search("foo", k=1)
     assert output == [Document(page_content="foo")]
 
