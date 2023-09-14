@@ -131,7 +131,6 @@ __all__ = [
     "StarRocks",
     "SupabaseVectorStore",
     "Tair",
-    "TileDB",
     "Tigris",
     "Typesense",
     "USearch",
