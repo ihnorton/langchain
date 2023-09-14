@@ -68,6 +68,7 @@ from langchain.vectorstores.starrocks import StarRocks
 from langchain.vectorstores.supabase import SupabaseVectorStore
 from langchain.vectorstores.tair import Tair
 from langchain.vectorstores.tencentvectordb import TencentVectorDB
+from langchain.vectorstores.tiledb import TileDB
 from langchain.vectorstores.tigris import Tigris
 from langchain.vectorstores.typesense import Typesense
 from langchain.vectorstores.usearch import USearch
@@ -130,6 +131,7 @@ __all__ = [
     "StarRocks",
     "SupabaseVectorStore",
     "Tair",
+    "TileDB",
     "Tigris",
     "Typesense",
     "USearch",
