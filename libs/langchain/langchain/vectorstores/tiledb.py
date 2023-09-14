@@ -389,7 +389,7 @@ class TileDB(VectorStore):
         vector_array_uri = f"{group.uri}/{VECTOR_ARRAY_NAME}"
         docs_uri = f"{group.uri}/{DOCUMENTS_ARRAY_NAME}"
         if ids is None:
-            ids = [random.randint(0, MAX_UINT64 - 1) for _ in texts]
+            ids = [str(random.randint(0, MAX_UINT64 - 1)) for _ in texts]
         external_ids = np.array(ids).astype(np.uint64)
 
         input_vectors = np.array(embeddings).astype(np.float32)
@@ -457,6 +457,7 @@ class TileDB(VectorStore):
 
         external_ids = np.array(ids).astype(np.uint64)
         self.index.delete_batch(external_ids=external_ids)
+        return True
 
     def add_texts(
         self,
@@ -475,10 +476,9 @@ class TileDB(VectorStore):
         Returns:
             List of ids from adding the texts into the vectorstore.
         """
-        embeddings = []
-        embeddings = self.embedding.embed_documents(texts)
+        embeddings = self.embedding.embed_documents(list(texts))
         if ids is None:
-            ids = [random.randint(0, 100000) for _ in texts]
+            ids = [str(random.randint(0, MAX_UINT64 - 1)) for _ in texts]
 
         external_ids = np.array(ids).astype(np.uint64)
         vectors = np.empty((len(embeddings)), dtype="O")
@@ -594,5 +594,5 @@ class TileDB(VectorStore):
 
         return cls(embeddings, index, DEFAULT_METRIC, documents_array_uri)
 
-    def consolidate_updates(self):
+    def consolidate_updates(self) -> None:
         self.index = self.index.consolidate_updates()
