@@ -1,6 +1,4 @@
 """Test TileDB functionality."""
-import pytest
-
 from langchain.docstore.document import Document
 from langchain.vectorstores import TileDB
 from tests.integration_tests.vectorstores.fake_embeddings import (

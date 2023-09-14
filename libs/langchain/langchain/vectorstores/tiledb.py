@@ -1,10 +1,9 @@
 """Wrapper around TileDB vector database."""
 from __future__ import annotations
 
-import os
 import pickle
 import random
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
 import tiledb
