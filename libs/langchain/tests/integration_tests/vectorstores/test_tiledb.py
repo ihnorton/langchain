@@ -41,8 +41,7 @@ def test_tiledb_vector_sim_with_score_threshold(tmp_path: Path) -> None:
         texts=texts, embedding=ConsistentFakeEmbeddings(), array_uri=str(tmp_path)
     )
     query_vec = FakeEmbeddings().embed_query(text="foo")
-    output = docsearch.similarity_search_by_vector(
-                  query_vec, k=2, score_threshold=0.2)
+    output = docsearch.similarity_search_by_vector(query_vec, k=2, score_threshold=0.2)
     assert output == [Document(page_content="foo")]
 
 
