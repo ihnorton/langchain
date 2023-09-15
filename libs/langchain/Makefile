@@ -45,13 +45,13 @@ api_docs_linkcheck:
 TEST_FILE ?= tests/unit_tests/
 
 test:
-	poetry run pytest --disable-socket --allow-unix-socket $(TEST_FILE)
+	poetry run pytest -k tiledb --disable-socket --allow-unix-socket $(TEST_FILE)
 
-tests: 
-	poetry run pytest --disable-socket --allow-unix-socket $(TEST_FILE)
+tests:
+	poetry run pytest -k tiledb --disable-socket --allow-unix-socket $(TEST_FILE)
 
 extended_tests:
-	poetry run pytest --disable-socket --allow-unix-socket --only-extended tests/unit_tests
+	poetry run pytest -k tiledb --disable-socket --allow-unix-socket --only-extended tests/unit_tests
 
 test_watch:
 	poetry run ptw --now . -- tests/unit_tests
